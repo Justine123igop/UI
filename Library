@@ -1,0 +1,973 @@
+-- Merged and fixed redzlib + Kaze UI style minimizer and utilities
+-- Features:
+--  - Keeps redzlib API and elements (Themes, AddEle, Make, Tabs, Options...)
+--  - Adds FormatImage (strict texture ID sanitizer)
+--  - Adds MakeDraggable (mouse & touch)
+--  - 60x60 draggable MiniButton with neon stroke + open/close animations
+--  - Several bug fixes (Connection spelling, Save/Verify order, Tween easing fixes)
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerMouse = Player and Player:GetMouse() or nil
+
+local redzlib = {
+    Themes = {
+        Red = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(70, 20, 20)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(100, 30, 30)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(70, 20, 20))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(85, 25, 25),
+            ["Color Stroke"] = Color3.fromRGB(120, 35, 35),
+            ["Color Theme"] = Color3.fromRGB(255, 65, 65),
+            ["Color Text"] = Color3.fromRGB(240, 240, 240),
+            ["Color Dark Text"] = Color3.fromRGB(180, 180, 180)
+        },
+        Blue = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 139)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 0, 139)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 0, 139))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(0, 0, 130),
+            ["Color Stroke"] = Color3.fromRGB(0, 0, 185),
+            ["Color Theme"] = Color3.fromRGB(0, 0, 139),
+            ["Color Text"] = Color3.fromRGB(255, 255, 255),
+            ["Color Dark Text"] = Color3.fromRGB(200, 220, 220)
+        },
+        Green = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 70, 20)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(30, 100, 30)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 70, 20))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(25, 85, 25),
+            ["Color Stroke"] = Color3.fromRGB(35, 120, 35),
+            ["Color Theme"] = Color3.fromRGB(65, 255, 65),
+            ["Color Text"] = Color3.fromRGB(240, 240, 240),
+            ["Color Dark Text"] = Color3.fromRGB(180, 180, 180)
+        },
+        Yellow = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(70, 70, 20)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(100, 100, 30)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(70, 70, 20))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(85, 85, 25),
+            ["Color Stroke"] = Color3.fromRGB(120, 120, 35),
+            ["Color Theme"] = Color3.fromRGB(255, 255, 65),
+            ["Color Text"] = Color3.fromRGB(30, 30, 30),
+            ["Color Dark Text"] = Color3.fromRGB(80, 80, 80)
+        },
+        Purple = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(50, 25, 50)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(75, 50, 100)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(50, 25, 50))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(60, 30, 60),
+            ["Color Stroke"] = Color3.fromRGB(90, 40, 90),
+            ["Color Theme"] = Color3.fromRGB(180, 65, 255),
+            ["Color Text"] = Color3.fromRGB(240, 240, 240),
+            ["Color Dark Text"] = Color3.fromRGB(180, 180, 180)
+        },
+        Dark = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(40, 40, 40)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(47, 47, 47)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(40, 40, 40))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(45, 45, 45),
+            ["Color Stroke"] = Color3.fromRGB(65, 65, 65),
+            ["Color Theme"] = Color3.fromRGB(65, 150, 255),
+            ["Color Text"] = Color3.fromRGB(245, 245, 245),
+            ["Color Dark Text"] = Color3.fromRGB(190, 190, 190)
+        },
+        Darker = {
+            ["Color Hub 1"] = ColorSequence.new({
+                ColorSequenceKeypoint.new(0.00, Color3.fromRGB(25, 25, 25)),
+                ColorSequenceKeypoint.new(0.50, Color3.fromRGB(32, 32, 32)),
+                ColorSequenceKeypoint.new(1.00, Color3.fromRGB(25, 25, 25))
+            }),
+            ["Color Hub 2"] = Color3.fromRGB(30, 30, 30),
+            ["Color Stroke"] = Color3.fromRGB(40, 40, 40),
+            ["Color Theme"] = Color3.fromRGB(88, 101, 242),
+            ["Color Text"] = Color3.fromRGB(243, 243, 243),
+            ["Color Dark Text"] = Color3.fromRGB(180, 180, 180)
+        }
+    },
+    Info = {
+        Version = "1.1.0"
+    },
+    Save = {
+        UISize = {650, 420},
+        TabSize = 170,
+        Theme = "Blue" -- default
+    },
+    Settings = {},
+    Connection = {},
+    Instances = {},
+    Elements = {},
+    Options = {},
+    Flags = {},
+    Tabs = {},
+    Icons = (pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/realredz/RedzLibV5/refs/heads/main/Icons.lua"))()
+    end) and loadstring(game:HttpGet("https://raw.githubusercontent.com/realredz/RedzLibV5/refs/heads/main/Icons.lua"))()) or {}
+}
+
+-- Sanitizer (strict)
+local function FormatImage(id)
+    if not id then return "" end
+    id = tostring(id)
+    local clean = string.gsub(id, "%D", "") -- keep only digits
+    if clean == "" then return "" end
+    return "rbxassetid://" .. clean
+end
+
+-- Viewport and scale
+local ViewportSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+local UIScale = ViewportSize.Y / 450
+local function UpdateScale()
+    local cam = workspace.CurrentCamera
+    if cam then
+        ViewportSize = cam.ViewportSize
+        UIScale = ViewportSize.Y / 450
+    end
+end
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateScale)
+end
+
+-- Local shortcuts
+local Settings = redzlib.Settings
+local Flags = redzlib.Flags
+
+-- Utility: InsertTheme tracking for instances
+local function InsertTheme(Instance, Type)
+    table.insert(redzlib.Instances, {
+        Instance = Instance,
+        Type = Type
+    })
+    return Instance
+end
+
+-- Basic helpers
+local function SetChildren(Instance, Children)
+    if Children then
+        for _, Child in pairs(Children) do
+            if typeof(Child) == "Instance" then
+                Child.Parent = Instance
+            end
+        end
+    end
+    return Instance
+end
+
+local function SetProps(Instance, Props)
+    if Props then
+        for prop, value in pairs(Props) do
+            Instance[prop] = value
+        end
+    end
+    return Instance
+end
+
+local function Create(classOrInstance, parentOrProps, maybeProps, maybeChildren)
+    -- Create(className, parent, props, children) OR Create(className, props, children)
+    local cls = classOrInstance
+    if typeof(cls) ~= "string" then return end
+    local new = Instance.new(cls)
+    if typeof(parentOrProps) == "Instance" then
+        if parentOrProps then new.Parent = parentOrProps end
+        SetProps(new, maybeProps)
+        SetChildren(new, maybeChildren)
+    elseif type(parentOrProps) == "table" then
+        SetProps(new, parentOrProps)
+        SetChildren(new, maybeProps)
+    end
+    return new
+end
+
+-- Verify theme exists
+local function VerifyTheme(ThemeName)
+    if type(ThemeName) ~= "string" then return false end
+    for name, _ in pairs(redzlib.Themes) do
+        if name == ThemeName then
+            return true
+        end
+    end
+    return false
+end
+
+-- Save / load helpers
+local function SaveJson(FileName, save)
+    if writefile then
+        local json = HttpService:JSONEncode(save)
+        pcall(writefile, FileName, json)
+    end
+end
+
+-- Forward-safe Save flags from file (tries to read JSON and apply)
+local function TryLoadFlags(file)
+    if readfile and isfile and isfile(file) then
+        local ok, data = pcall(readfile, file)
+        if ok and type(data) == "string" then
+            local suc, decoded = pcall(function() return HttpService:JSONDecode(data) end)
+            if suc and type(decoded) == "table" then
+                -- merge flags
+                for k,v in pairs(decoded) do
+                    redzlib.Flags[k] = v
+                end
+            end
+        end
+    end
+end
+
+-- Function collection
+local Funcs = {}
+function Funcs:InsertCallback(tab, func)
+    if type(func) == "function" then
+        table.insert(tab, func)
+    end
+    return func
+end
+function Funcs:FireCallback(tab, ...)
+    for _, v in ipairs(tab) do
+        if type(v) == "function" then
+            task.spawn(v, ...)
+        end
+    end
+end
+function Funcs:ToggleVisible(Obj, Bool)
+    Obj.Visible = (Bool ~= nil) and Bool or Obj.Visible
+end
+function Funcs:ToggleParent(Obj, Parent, Bool)
+    if Bool ~= nil then
+        if Bool then Obj.Parent = Parent end
+    else
+        if not Obj.Parent and Parent then Obj.Parent = Parent end
+    end
+end
+function Funcs:GetConnectionFunctions(ConnectedFuncs, func)
+    local Connected = { Function = func, Connected = true }
+    function Connected:Disconnect()
+        if self.Connected then
+            local idx = table.find(ConnectedFuncs, self.Function)
+            if idx then
+                table.remove(ConnectedFuncs, idx)
+            end
+            self.Connected = false
+        end
+    end
+    function Connected:Fire(...)
+        if self.Connected then
+            task.spawn(self.Function, ...)
+        end
+    end
+    return Connected
+end
+function Funcs:GetCallback(Configs, index)
+    local func = (type(Configs) == "table" and (Configs[index] or Configs.Callback)) or function() end
+    if type(func) == "table" then
+        -- e.g. {table, key}
+        return { function(Value) func[1][func[2]] = Value end }
+    end
+    return { func }
+end
+
+-- Connection system
+local Connections, Connection = {}, redzlib.Connection
+do
+    local function NewConnectionList(List)
+        if type(List) ~= "table" then return end
+        for _, CoName in ipairs(List) do
+            local ConnectedFuncs = {}
+            local Connect = {}
+            Connection[CoName] = Connect
+            Connections[CoName] = ConnectedFuncs
+            Connect.Name = CoName
+            function Connect:Connect(func)
+                if type(func) == "function" then
+                    table.insert(ConnectedFuncs, func)
+                    return Funcs:GetConnectionFunctions(ConnectedFuncs, func)
+                end
+            end
+            function Connect:Once(func)
+                if type(func) == "function" then
+                    local Connected
+                    local _NFunc
+                    _NFunc = function(...)
+                        task.spawn(func, ...)
+                        Connected:Disconnect()
+                    end
+                    Connected = Funcs:GetConnectionFunctions(ConnectedFuncs, _NFunc)
+                    return Connected
+                end
+            end
+        end
+    end
+
+    function Connection:FireConnection(CoName, ...)
+        local ConTbl = nil
+        if type(CoName) == "string" then ConTbl = Connections[CoName] end
+        if type(CoName) == "table" and CoName.Name then ConTbl = Connections[CoName.Name] end
+        if ConTbl then
+            for _, Func in pairs(ConTbl) do
+                task.spawn(Func, ...)
+            end
+        end
+    end
+
+    NewConnectionList({"FlagsChanged", "ThemeChanged", "FileSaved", "ThemeChanging", "OptionAdded"})
+end
+
+-- Flags API
+local function CheckFlag(Name)
+    return type(Name) == "string" and redzlib.Flags[Name] ~= nil
+end
+local function GetFlag(Name)
+    return type(Name) == "string" and redzlib.Flags[Name]
+end
+local function SetFlag(Flag, Value)
+    if Flag and (Value ~= redzlib.Flags[Flag] or type(Value) == "table") then
+        redzlib.Flags[Flag] = Value
+        Connection:FireConnection("FlagsChanged", Flag, Value)
+    end
+end
+
+-- Auto-save flags on change (if Settings.ScriptFile is set)
+do
+    local db
+    Connection.FlagsChanged:Connect(function(Flag, Value)
+        local ScriptFile = Settings.ScriptFile
+        if not db and ScriptFile and writefile then
+            db = true; task.wait(0.1); db = false
+            local Success, Encoded = pcall(function()
+                return HttpService:JSONEncode(redzlib.Flags)
+            end)
+            if Success then
+                pcall(writefile, ScriptFile, Encoded)
+                Connection:FireConnection("FileSaved", "Script-Flags", ScriptFile, Encoded)
+            end
+        end
+    end)
+end
+
+-- Create ScreenGui (parent to CoreGui by default to match original behavior)
+local ScreenGui = Create("ScreenGui", CoreGui, {
+    Name = "redz Library V5",
+}, {
+    Create("UIScale", {
+        Scale = UIScale,
+        Name = "Scale"
+    })
+})
+
+-- if existing Gui exists, remove duplicate
+local ScreenFind = CoreGui:FindFirstChild(ScreenGui.Name)
+if ScreenFind and ScreenFind ~= ScreenGui then
+    ScreenFind:Destroy()
+end
+
+-- Small helpers
+local function GetStr(val)
+    if type(val) == "function" then
+        return val()
+    end
+    return val
+end
+
+local function ConnectSave(Instance, func)
+    Instance.InputBegan:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+            while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do task.wait() end
+        end
+        func()
+    end)
+end
+
+local function CreateTween(Configs)
+    local Instance_ = Configs[1] or Configs.Instance
+    local Prop = Configs[2] or Configs.Prop
+    local NewVal = Configs[3] or Configs.NewVal
+    local Time = Configs[4] or Configs.Time or 0.5
+    local TweenWait = Configs[5] or Configs.wait or false
+    local TweenInfo = TweenInfo.new(Time, Enum.EasingStyle.Quint)
+    local Tween = TweenService:Create(Instance_, TweenInfo, {[Prop] = NewVal})
+    Tween:Play()
+    if TweenWait then
+        Tween.Completed:Wait()
+    end
+    return Tween
+end
+
+-- Improved draggable (Kaze-style): dragPart (the input region) moves targetPart
+local function MakeDraggable(dragPart, targetPart)
+    task.spawn(function()
+        local dragging = false
+        local dragInput, dragStart, startPos
+        local function update(input)
+            if not dragStart or not startPos then return end
+            local delta = input.Position - dragStart
+            local newPos = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+            -- animate for smoothness
+            pcall(function()
+                TweenService:Create(targetPart, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {Position = newPos}):Play()
+            end)
+        end
+
+        dragPart.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = targetPart.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                        dragInput = nil
+                    end
+                end)
+            end
+        end)
+
+        dragPart.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                update(input)
+            end
+        end)
+    end)
+    return dragPart
+end
+
+-- Theme current
+local Theme = redzlib.Themes[redzlib.Save.Theme] or redzlib.Themes.Blue
+
+-- Element system (AddEle / Make)
+local function AddEle(Name, Func)
+    redzlib.Elements[Name] = Func
+end
+local function Make(Ele, Instance, props, ...)
+    if not redzlib.Elements[Ele] then return end
+    return redzlib.Elements[Ele](Instance, props, ...)
+end
+
+-- Core elements (Corner, Stroke, Button, Gradient)
+AddEle("Corner", function(parent, CornerRadius)
+    local New = SetProps(Create("UICorner", parent, {
+        CornerRadius = CornerRadius or UDim.new(0, 7)
+    }), nil)
+    return New
+end)
+
+AddEle("Stroke", function(parent, props, ...)
+    local args = {...}
+    local New = SetProps(Create("UIStroke", parent, {
+        Color = args[1] or Theme["Color Stroke"],
+        Thickness = args[2] or 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }), props)
+    InsertTheme(New, "Stroke")
+    return New
+end)
+
+AddEle("Button", function(parent, props, ...)
+    local args = {...}
+    local New = SetProps(Create("TextButton", parent, {
+        Text = "",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Theme["Color Hub 2"],
+        AutoButtonColor = false
+    }), props)
+    InsertTheme(New, "Frame")
+    New.MouseEnter:Connect(function()
+        New.BackgroundTransparency = 0.4
+    end)
+    New.MouseLeave:Connect(function()
+        New.BackgroundTransparency = 0
+    end)
+    if args[1] and type(args[1]) == "function" then
+        New.Activated:Connect(args[1])
+    end
+    return New
+end)
+
+AddEle("Gradient", function(parent, props, ...)
+    local New = SetProps(Create("UIGradient", parent, {
+        Color = Theme["Color Hub 1"]
+    }), props)
+    InsertTheme(New, "Gradient")
+    return New
+end)
+
+-- A compact ButtonFrame builder (keeps original API)
+local function ButtonFrame(Instance, Title, Description, HolderSize)
+    local TitleL = InsertTheme(Create("TextLabel", Instance, {
+        Font = Enum.Font.GothamMedium,
+        TextColor3 = Theme["Color Text"],
+        Size = UDim2.new(1, -20, 0, 14),
+        AutomaticSize = "Y",
+        Position = UDim2.new(0, 0, 0.5),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        TextTruncate = "AtEnd",
+        TextSize = 10,
+        TextXAlignment = "Left",
+        Text = "",
+        RichText = true
+    }), "Text")
+
+    local DescL = InsertTheme(Create("TextLabel", Instance, {
+        Font = Enum.Font.Gotham,
+        TextColor3 = Theme["Color Dark Text"],
+        Size = UDim2.new(1, -20, 0, 10),
+        AutomaticSize = "Y",
+        Position = UDim2.new(0, 12, 0, 15),
+        BackgroundTransparency = 1,
+        TextWrapped = true,
+        TextSize = 8,
+        TextXAlignment = "Left",
+        Text = "",
+        RichText = true
+    }), "DarkText")
+
+    local Frame = Make("Button", Instance, {
+        Size = UDim2.new(1, 0, 0, 25),
+        AutomaticSize = "Y",
+        Name = "Option"
+    })
+
+    Make("Corner", Frame, UDim.new(0, 6))
+
+    local LabelHolder = Create("Frame", Frame, {
+        AutomaticSize = "Y",
+        BackgroundTransparency = 1,
+        Size = HolderSize,
+        Position = UDim2.new(0, 10, 0),
+        AnchorPoint = Vector2.new(0, 0)
+    }, {
+        Create("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 2)
+        }),
+        Create("UIPadding", {
+            PaddingBottom = UDim.new(0, 5),
+            PaddingTop = UDim.new(0, 5)
+        }),
+        TitleL,
+        DescL,
+    })
+
+    local Label = {}
+    function Label:SetTitle(NewTitle)
+        if type(NewTitle) == "string" and NewTitle:gsub(" ", ""):len() > 0 then
+            TitleL.Text = NewTitle
+        end
+    end
+    function Label:SetDesc(NewDesc)
+        if type(NewDesc) == "string" and NewDesc:gsub(" ", ""):len() > 0 then
+            DescL.Visible = true
+            DescL.Text = NewDesc
+            LabelHolder.Position = UDim2.new(0, 10, 0, 0)
+            LabelHolder.AnchorPoint = Vector2.new(0, 0)
+        else
+            DescL.Visible = false
+            DescL.Text = ""
+            LabelHolder.Position = UDim2.new(0, 10, 0.5)
+            LabelHolder.AnchorPoint = Vector2.new(0, 0.5)
+        end
+    end
+
+    Label:SetTitle(Title)
+    Label:SetDesc(Description)
+    return Frame, Label
+end
+
+local function GetColor(Instance)
+    if Instance:IsA("Frame") then
+        return "BackgroundColor3"
+    elseif Instance:IsA("ImageLabel") or Instance:IsA("ImageButton") then
+        return "ImageColor3"
+    elseif Instance:IsA("TextLabel") or Instance:IsA("TextBox") then
+        return "TextColor3"
+    elseif Instance:IsA("ScrollingFrame") or Instance:IsA("Frame") then
+        return "ScrollBarImageColor3"
+    elseif Instance:IsA("UIStroke") then
+        return "Color"
+    end
+    return ""
+end
+
+-- Icon lookup using Icons table and sanitizer
+function redzlib:GetIcon(index)
+    if type(index) ~= "string" or index:find("rbxassetid://") or #index == 0 then
+        return index
+    end
+
+    local firstMatch = nil
+    index = string.lower(index):gsub("lucide", ""):gsub("-", "")
+
+    for Name, Icon in pairs(self.Icons or {}) do
+        local normalized = tostring(Name):gsub("lucide", ""):gsub("-", "")
+        if normalized == index then
+            return Icon
+        elseif not firstMatch and normalized:find(index, 1, true) then
+            firstMatch = Icon
+        end
+    end
+
+    return firstMatch or index
+end
+
+-- Set theme properly (fixed Connection variable usage)
+function redzlib:SetTheme(NewTheme)
+    if not VerifyTheme(NewTheme) then return end
+
+    redzlib.Save.Theme = NewTheme
+    SaveJson("redz library V5.json", redzlib.Save)
+    Theme = redzlib.Themes[NewTheme]
+
+    Connection:FireConnection("ThemeChanged", NewTheme)
+    for _, Val in ipairs(redzlib.Instances) do
+        if Val.Type == "Gradient" then
+            Val.Instance.Color = Theme["Color Hub 1"]
+        elseif Val.Type == "Frame" then
+            Val.Instance.BackgroundColor3 = Theme["Color Hub 2"]
+        elseif Val.Type == "Stroke" then
+            local c = GetColor(Val.Instance)
+            if c and c ~= "" then Val.Instance[c] = Theme["Color Stroke"] end
+        elseif Val.Type == "Theme" then
+            local c = GetColor(Val.Instance)
+            if c and c ~= "" then Val.Instance[c] = Theme["Color Theme"] end
+        elseif Val.Type == "Text" then
+            local c = GetColor(Val.Instance)
+            if c and c ~= "" then Val.Instance[c] = Theme["Color Text"] end
+        elseif Val.Type == "DarkText" then
+            local c = GetColor(Val.Instance)
+            if c and c ~= "" then Val.Instance[c] = Theme["Color Dark Text"] end
+        elseif Val.Type == "ScrollBar" then
+            local c = GetColor(Val.Instance)
+            if c and c ~= "" then Val.Instance[c] = Theme["Color Theme"] end
+        end
+    end
+end
+
+function redzlib:SetScale(NewScale)
+    NewScale = ViewportSize.Y / math.clamp(NewScale, 300, 2000)
+    UIScale, ScreenGui.Scale.Scale = NewScale, NewScale
+end
+
+-- MakeWindow: updated to use FormatImage, MakeDraggable and 60x60 mini button behavior
+function redzlib:MakeWindow(Configs)
+    local WTitle = Configs[1] or Configs.Name or Configs.Title or "redz Library V5"
+    local WMiniText = Configs[2] or Configs.SubTitle or "by : redz9999"
+    Settings.ScriptFile = Configs[3] or Configs.SaveFolder or false
+
+    -- Try load saved Flags
+    if Settings.ScriptFile then
+        TryLoadFlags(Settings.ScriptFile)
+    end
+
+    local UISizeX, UISizeY = unpack(redzlib.Save.UISize or {650, 420})
+
+    -- Main frame
+    local MainFrame = InsertTheme(Create("ImageButton", ScreenGui, {
+        Size = UDim2.fromOffset(UISizeX, UISizeY),
+        Position = UDim2.new(0.5, -UISizeX/2, 0.5, -UISizeY/2),
+        BackgroundTransparency = 0.03,
+        Name = "Hub",
+        AutoButtonColor = false,
+        Image = ""
+    }), "Main")
+    Make("Gradient", MainFrame, {Rotation = 45})
+    -- draggable via top bar later
+    local MainCorner = Make("Corner", MainFrame)
+
+    local Components = Create("Folder", MainFrame, { Name = "Components" })
+    local DropdownHolder = Create("Folder", ScreenGui, { Name = "Dropdown" })
+
+    local TopBar = Create("Frame", Components, {
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundTransparency = 1,
+        Name = "Top Bar"
+    })
+
+    local Title = InsertTheme(Create("TextLabel", TopBar, {
+        Position = UDim2.new(0, 15, 0.5),
+        AnchorPoint = Vector2.new(0, 0.5),
+        AutomaticSize = "XY",
+        Text = WTitle,
+        TextXAlignment = "Left",
+        TextSize = 12,
+        TextColor3 = Theme["Color Text"],
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamMedium,
+        Name = "Title"
+    }, {
+        InsertTheme(Create("TextLabel", {
+            Size = UDim2.fromScale(0, 1),
+            AutomaticSize = "X",
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(1, 5, 0.9),
+            Text = WMiniText,
+            TextColor3 = Theme["Color Dark Text"],
+            BackgroundTransparency = 1,
+            TextXAlignment = "Left",
+            TextYAlignment = "Bottom",
+            TextSize = 8,
+            Font = Enum.Font.Gotham,
+            Name = "SubTitle"
+        }), "DarkText")
+    }), "Text")
+
+    local MainScroll = InsertTheme(Create("ScrollingFrame", Components, {
+        Size = UDim2.new(0, redzlib.Save.TabSize, 1, -TopBar.Size.Y.Offset),
+        ScrollBarImageColor3 = Theme["Color Theme"],
+        Position = UDim2.new(0, 0, 1, 0),
+        AnchorPoint = Vector2.new(0, 1),
+        ScrollBarThickness = 1.5,
+        BackgroundTransparency = 1,
+        ScrollBarImageTransparency = 0.2,
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = "Y",
+        ScrollingDirection = "Y",
+        BorderSizePixel = 0,
+        Name = "Tab Scroll"
+    }, {
+        Create("UIPadding", {
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+            PaddingTop = UDim.new(0, 10),
+            PaddingBottom = UDim.new(0, 10)
+        }), Create("UIListLayout", {
+            Padding = UDim.new(0, 5)
+        })
+    }), "ScrollBar")
+
+    local Containers = Create("Frame", Components, {
+        Size = UDim2.new(1, -MainScroll.Size.X.Offset, 1, -TopBar.Size.Y.Offset),
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Name = "Containers"
+    })
+
+    -- Control size handles (kept simple, draggable)
+    local ControlSize1 = MakeDraggable(Create("ImageButton", MainFrame, {
+        Size = UDim2.new(0, 35, 0, 35),
+        Position = MainFrame.Size,
+        Active = true,
+        AnchorPoint = Vector2.new(0.8, 0.8),
+        BackgroundTransparency = 1,
+        Name = "Control Hub Size"
+    }), Create("Frame", MainFrame)) -- not used directly; we only needed a draggable object
+    local ControlSize2 = MakeDraggable(Create("ImageButton", MainFrame, {
+        Size = UDim2.new(0, 20, 1, -30),
+        Position = UDim2.new(0, MainScroll.Size.X.Offset, 1, 0),
+        AnchorPoint = Vector2.new(0.5, 1),
+        Active = true,
+        BackgroundTransparency = 1,
+        Name = "Control Tab Size"
+    }), Create("Frame", MainFrame))
+
+    -- Buttons: Close & Minimize (we will wire minimize to 60x60 mini)
+    local ButtonsFolder = Create("Folder", TopBar, { Name = "Buttons" })
+
+    local CloseButton = Create("ImageButton", {
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new(1, -10, 0.5),
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://10747384394",
+        AutoButtonColor = false,
+        Name = "Close"
+    })
+
+    local MinimizeButton = SetProps(CloseButton:Clone(), {
+        Position = UDim2.new(1, -35, 0.5),
+        Image = "rbxassetid://10734896206",
+        Name = "Minimize"
+    })
+
+    SetChildren(ButtonsFolder, {
+        CloseButton,
+        MinimizeButton
+    })
+
+    -- Mini button (60x60 ImageButton) — parent to ScreenGui so it stays visible
+    local MiniButton = Create("ImageButton", ScreenGui, {
+        Name = "MiniButton",
+        Size = UDim2.fromOffset(60, 60),
+        Position = UDim2.fromScale(0.1, 0.1),
+        BackgroundColor3 = Theme["Color Hub 2"],
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 999,
+        AutoButtonColor = false,
+        Image = FormatImage(Configs and Configs.Icon or "")
+    })
+    local miniUICorner = Create("UICorner", MiniButton, { CornerRadius = UDim.new(0, 12) })
+    local miniPadding = Create("UIPadding", MiniButton, {
+        PaddingTop = UDim.new(0, 4),
+        PaddingBottom = UDim.new(0, 4),
+        PaddingLeft = UDim.new(0, 4),
+        PaddingRight = UDim.new(0, 4)
+    })
+    local MiniIcon = Create("ImageLabel", MiniButton, {
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Image = FormatImage(Configs and (Configs.OpenButton and Configs.OpenButton.Icon) or Configs.Icon or "")
+    })
+    local MiniStroke = Create("UIStroke", MiniButton, {
+        Color = Theme["Color Theme"],
+        Thickness = 2.5,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    })
+    -- neon animation
+    task.spawn(function()
+        if MiniStroke then
+            local ok, t = pcall(function()
+                return TweenService:Create(MiniStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Color = Theme["Color Theme"] })
+            end)
+            if ok and t then pcall(function() t:Play() end) end
+        end
+    end)
+
+    -- Draggable topbar and mini
+    MakeDraggable(TopBar, MainFrame)
+    MakeDraggable(MiniButton, MiniButton)
+
+    -- Minimize behavior: hide MainFrame -> show MiniButton 60x60
+    local Minimized = false
+    MinimizeButton.Activated:Connect(function()
+        if Minimized then
+            -- restore
+            MiniButton.Visible = false
+            MainFrame.Visible = true
+            MainFrame.Size = UDim2.fromOffset(0, 0)
+            TweenService:Create(MainFrame, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(UISizeX, UISizeY) }):Play()
+            Minimized = false
+        else
+            -- minimize
+            MiniButton.Visible = true
+            -- animate mini growth
+            MiniButton.Size = UDim2.fromOffset(0, 0)
+            TweenService:Create(MiniButton, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(60, 60) }):Play()
+            TweenService:Create(MainFrame, TweenInfo.new(0.2), { Size = UDim2.fromOffset(UISizeX, 28) }):Play()
+            MainFrame.Visible = false
+            Minimized = true
+        end
+    end)
+
+    -- Clicking mini restores window
+    MiniButton.MouseButton1Click:Connect(function()
+        MiniButton.Visible = false
+        MainFrame.Visible = true
+        MainFrame.Size = UDim2.fromOffset(0, 0)
+        TweenService:Create(MainFrame, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(UISizeX, UISizeY) }):Play()
+        Minimized = false
+    end)
+
+    -- Close with confirmation overlay (keeps original logic but uses created ScreenGui)
+    local function ShowCloseConfirm()
+        MinimizeButton.Active = false
+        CloseButton.Active = false
+        local Overlay = Create("Frame", MainFrame, {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+            BackgroundTransparency = 0.6,
+            ZIndex = 20
+        })
+        local ConfirmWindow = Create("Frame", Overlay, {
+            Size = UDim2.fromOffset(350, 150),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(25, 25, 30),
+            ZIndex = 21
+        })
+        Make("Corner", ConfirmWindow)
+        local ConfirmText = Create("TextLabel", ConfirmWindow, {
+            Size = UDim2.new(1, -32, 0, 48),
+            Position = UDim2.fromOffset(16, 20),
+            BackgroundTransparency = 1,
+            Text = "Are you sure you want to close the UI?",
+            TextColor3 = Color3.fromRGB(230, 230, 230),
+            Font = Enum.Font.GothamBold,
+            TextSize = 18,
+            TextWrapped = true,
+            ZIndex = 22
+        })
+        local ButtonsFrame = Create("Frame", ConfirmWindow, {
+            Size = UDim2.new(1, 0, 0, 40),
+            Position = UDim2.new(0, 0, 1, -20),
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundTransparency = 1,
+            ZIndex = 22
+        })
+        local layout = Create("UIListLayout", ButtonsFrame, {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            Padding = UDim.new(0, 16)
+        })
+        local ConfirmBtn = Create("TextButton", ButtonsFrame, {
+            Size = UDim2.new(0, 120, 0, 36),
+            BackgroundColor3 = Color3.fromRGB(0, 170, 255),
+            Text = "Confirm",
+            TextColor3 = Color3.fromRGB(230, 230, 230),
+            Font = Enum.Font.GothamBold,
+            TextSize = 16,
+            ZIndex = 23
+        })
+        Make("Corner", ConfirmBtn)
+        local CancelBtn = Create("TextButton", ButtonsFrame, {
+            Size = UDim2.new(0, 120, 0, 36),
+            BackgroundColor3 = Color3.fromRGB(45, 45, 50),
+            Text = "Cancel",
+            TextColor3 = Color3.fromRGB(220, 220, 220),
+            Font = Enum.Font.GothamBold,
+            TextSize = 16,
+            ZIndex = 23
+        })
+        Make("Corner", CancelBtn)
+        ConfirmBtn.Activated:Connect(function()
+            ScreenGui:Destroy()
+        end)
+        CancelBtn.Activated:Connect(function()
+            Overlay:Destroy()
+            MinimizeButton.Active = true
+            CloseButton.Active = true
+        end)
+    end
+    CloseButton.Activated:Connect(ShowCloseConfirm)
+
+    -- Return the window handles
+    local WindowAPI = {}
+    WindowAPI.Window = MainFrame
+    WindowAPI.Content = Containers
+    WindowAPI.Icon = Title
+    WindowAPI.MiniButton = MiniButton
+
+    return WindowAPI
+end
+
+return redzlib
