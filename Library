@@ -1,14 +1,10 @@
--- Kaze-style Neon UI Library
--- Exposes the API used in your example:
--- Library:MakeWindow(config)
--- Window:MakeTab(tbl)
--- Tab:AddSection(name)
--- Tab:AddButton(tbl)
--- Tab:AddToggle(tbl)
--- Tab:AddSlider(tbl)
--- Tab:AddDropdown(tbl)
--- Tab:AddTextBox(tbl)
--- Returns tables matching the example usage.
+-- Kaze-style Neon UI Library (updated)
+-- Changes in this version:
+-- 1) All visible text (TextLabels/TextButtons/TextBoxes) use pure white color.
+-- 2) Slider drag now disables camera mouse behavior while dragging (prevents camera turning).
+-- 3) Dropdown choices open in a floating menu to the RIGHT of the UI (but keep the same neon style).
+-- 4) Section headers are blue (neon blue) as requested.
+-- 5) Example-friendly API: Library:MakeWindow, Window:MakeTab, Tab:AddSection, Tab:AddButton, Tab:AddToggle, Tab:AddSlider, Tab:AddDropdown, Tab:AddTextBox
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -86,7 +82,6 @@ local function ApplyNeonStroke(inst, thickness)
 	stroke.Color = Color3.fromRGB(0, 160, 255)
 	stroke.Thickness = thickness
 	stroke.Parent = inst
-	-- animated neon
 	spawn(function()
 		while inst and inst.Parent do
 			local ok, _ = pcall(function()
@@ -102,7 +97,6 @@ end
 local Library = {}
 Library.__index = Library
 
--- Window factory (exposed as MakeWindow to match your example)
 function Library:MakeWindow(config)
 	config = config or {}
 	local Title = config.Title or config.Name or "Kaze UI"
@@ -146,7 +140,7 @@ function Library:MakeWindow(config)
 	TitleLabel.Position = UDim2.fromOffset(56, 8)
 	TitleLabel.BackgroundTransparency = 1
 	TitleLabel.Text = Title
-	TitleLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+	TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
 	TitleLabel.Font = Enum.Font.GothamBold
 	TitleLabel.TextSize = 16
 	TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -157,7 +151,7 @@ function Library:MakeWindow(config)
 	SubLabel.Position = UDim2.fromOffset(56, 30)
 	SubLabel.BackgroundTransparency = 1
 	SubLabel.Text = SubTitle
-	SubLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+	SubLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
 	SubLabel.Font = Enum.Font.Gotham
 	SubLabel.TextSize = 13
 	SubLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -169,7 +163,7 @@ function Library:MakeWindow(config)
 	Minimize.Text = "—"
 	Minimize.Font = Enum.Font.GothamBold
 	Minimize.TextSize = 20
-	Minimize.TextColor3 = Color3.fromRGB(220, 220, 220)
+	Minimize.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
 	Minimize.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 	Minimize.Parent = TopBar
 	Instance.new("UICorner", Minimize).CornerRadius = UDim.new(1, 0)
@@ -180,7 +174,7 @@ function Library:MakeWindow(config)
 	Close.Text = "✕"
 	Close.Font = Enum.Font.GothamBold
 	Close.TextSize = 18
-	Close.TextColor3 = Color3.fromRGB(255, 90, 90)
+	Close.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
 	Close.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 	Close.Parent = TopBar
 	Instance.new("UICorner", Close).CornerRadius = UDim.new(1, 0)
@@ -230,9 +224,36 @@ function Library:MakeWindow(config)
 		end
 	end
 
+	-- Track a single open floating dropdown to close when needed
+	local openFloatingDropdown = nil
+	local function closeFloatingDropdown()
+		if openFloatingDropdown and openFloatingDropdown.Parent then
+			openFloatingDropdown:Destroy()
+		end
+		openFloatingDropdown = nil
+	end
+	-- Close floating dropdown if clicking outside
+	UIS.InputBegan:Connect(function(input, gpe)
+		if openFloatingDropdown and input.UserInputType == Enum.UserInputType.MouseButton1 then
+			-- If clicked somewhere that's not the floating dropdown, close it
+			local target = input.Target
+			if not target then
+				closeFloatingDropdown()
+			else
+				local parent = target
+				local inside = false
+				while parent and parent ~= ScreenGui.Parent do
+					if parent == openFloatingDropdown then inside = true break end
+					parent = parent.Parent
+				end
+				if not inside then closeFloatingDropdown() end
+			end
+		end
+	end)
+
 	local function CreateTab(tbl)
 		tbl = tbl or {}
-		local name = tbl.Name or tbl.Name or "Tab" .. (#pageTable + 1)
+		local name = tbl.Name or ("Tab" .. (#pageTable + 1))
 		local icon = FormatImage(tbl.Icon or tbl.Image or "")
 
 		local TabBtn = Instance.new("TextButton")
@@ -259,7 +280,7 @@ function Library:MakeWindow(config)
 		btnLabel.Position = UDim2.fromOffset(44, 0)
 		btnLabel.BackgroundTransparency = 1
 		btnLabel.Text = name
-		btnLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+		btnLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 		btnLabel.Font = Enum.Font.GothamBold
 		btnLabel.TextSize = 14
 		btnLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -316,7 +337,7 @@ function Library:MakeWindow(config)
 			btn.Text = tbl.Name or "Button"
 			btn.Font = Enum.Font.GothamBold
 			btn.TextSize = 14
-			btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			btn.Parent = container
 			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 			local stroke = ApplyNeonStroke(btn, 2)
@@ -324,12 +345,14 @@ function Library:MakeWindow(config)
 				btn.MouseButton1Click:Connect(function()
 					pcall(tbl.Callback)
 					-- quick neon flash
-					local ok, _ = pcall(function()
-						local t1 = TweenService:Create(stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = Color3.fromRGB(180,255,255)})
-						local t2 = TweenService:Create(stroke, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Color = Color3.fromRGB(0,160,255)})
-						t1:Play()
-						t1.Completed:Wait()
-						t2:Play()
+					spawn(function()
+						pcall(function()
+							local t1 = TweenService:Create(stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = Color3.fromRGB(180,255,255)})
+							local t2 = TweenService:Create(stroke, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Color = Color3.fromRGB(0,160,255)})
+							t1:Play()
+							t1.Completed:Wait()
+							t2:Play()
+						end)
 					end)
 				end)
 			end
@@ -346,7 +369,7 @@ function Library:MakeWindow(config)
 			lbl.Size = UDim2.new(0.7, 0, 1, 0)
 			lbl.BackgroundTransparency = 1
 			lbl.Text = tbl.Name or "Toggle"
-			lbl.TextColor3 = Color3.fromRGB(230, 230, 230)
+			lbl.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			lbl.Font = Enum.Font.GothamBold
 			lbl.TextSize = 14
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -391,7 +414,7 @@ function Library:MakeWindow(config)
 			return toggleFrame
 		end
 
-		-- Dropdown
+		-- Dropdown (floating to the right)
 		local function AddDropdown(tbl)
 			tbl = tbl or {}
 			local options = tbl.Options or {}
@@ -400,7 +423,7 @@ function Library:MakeWindow(config)
 			lbl.Size = UDim2.new(0.45, 0, 1, 0)
 			lbl.BackgroundTransparency = 1
 			lbl.Text = tbl.Name or "Dropdown"
-			lbl.TextColor3 = Color3.fromRGB(230, 230, 230)
+			lbl.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			lbl.Font = Enum.Font.GothamBold
 			lbl.TextSize = 14
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -413,66 +436,104 @@ function Library:MakeWindow(config)
 			selection.Text = tbl.Default or "Select..."
 			selection.Font = Enum.Font.Gotham
 			selection.TextSize = 14
-			selection.TextColor3 = Color3.fromRGB(200,200,200)
+			selection.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			selection.Parent = container
 			Instance.new("UICorner", selection).CornerRadius = UDim.new(0, 8)
 			ApplyNeonStroke(selection, 1.8)
 
-			local listFrame = Instance.new("Frame")
-			listFrame.Size = UDim2.new(1, 0, 0, 0)
-			listFrame.Position = UDim2.new(0, 0, 1, 6)
-			listFrame.ClipsDescendants = true
-			listFrame.BackgroundTransparency = 1
-			listFrame.Parent = container
-
 			local open = false
-			local function rebuildOptions()
-				for _, v in pairs(listFrame:GetChildren()) do
-					if not v:IsA("UIListLayout") and not v:IsA("UIPadding") then v:Destroy() end
-				end
+
+			-- Build floating options frame (parented to ScreenGui) to the RIGHT of the selection button
+			local function openFloating()
+				closeFloatingDropdown()
+				local absPos = selection.AbsolutePosition
+				local absSize = selection.AbsoluteSize
+				-- compute position for floating: right of selection
+				local floatX = absPos.X + absSize.X + 8
+				local floatY = absPos.Y
+				local optsCount = #options
+				local padding = 6
+				local itemHeight = 36
+				local totalHeight = optsCount * (itemHeight + 6)
+				if totalHeight == 0 then totalHeight = itemHeight end
+
+				local floatFrame = Instance.new("Frame")
+				floatFrame.Name = "FloatingDropdown"
+				floatFrame.Size = UDim2.fromOffset(0, 0)
+				floatFrame.Position = UDim2.fromOffset(floatX, floatY)
+				floatFrame.BackgroundTransparency = 1
+				floatFrame.ClipsDescendants = true
+				floatFrame.ZIndex = 9999
+				floatFrame.Parent = ScreenGui
+
 				local optsFrame = Instance.new("Frame")
-				optsFrame.Size = UDim2.new(1, 0, 0, #options * 36)
+				optsFrame.Size = UDim2.new(1, 0, 1, 0)
 				optsFrame.BackgroundTransparency = 1
-				optsFrame.Parent = listFrame
-				local optsLayout = Instance.new("UIListLayout")
-				optsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-				optsLayout.Padding = UDim.new(0, 6)
-				optsLayout.Parent = optsFrame
+				optsFrame.Parent = floatFrame
+
+				local containerFrame = Instance.new("Frame")
+				containerFrame.Size = UDim2.fromOffset(200, totalHeight)
+				containerFrame.BackgroundColor3 = Color3.fromRGB(25,25,30)
+				containerFrame.BorderSizePixel = 0
+				containerFrame.Parent = optsFrame
+				Instance.new("UICorner", containerFrame).CornerRadius = UDim.new(0, 8)
+				ApplyNeonStroke(containerFrame, 1.8)
+				containerFrame.ZIndex = 10000
+
+				local listLayout = Instance.new("UIListLayout")
+				listLayout.Padding = UDim.new(0, 6)
+				listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				listLayout.Parent = containerFrame
+
 				for i, opt in ipairs(options) do
 					local optBtn = Instance.new("TextButton")
-					optBtn.Size = UDim2.new(1, 0, 0, 36)
+					optBtn.Size = UDim2.new(1, -12, 0, itemHeight)
+					optBtn.Position = UDim2.fromOffset(6, 0)
 					optBtn.BackgroundColor3 = Color3.fromRGB(32,32,36)
 					optBtn.Text = tostring(opt)
-					optBtn.TextColor3 = Color3.fromRGB(220,220,220)
+					optBtn.TextColor3 = Color3.fromRGB(255,255,255) -- white
 					optBtn.Font = Enum.Font.Gotham
 					optBtn.TextSize = 14
-					optBtn.Parent = optsFrame
+					optBtn.Parent = containerFrame
 					optBtn.BorderSizePixel = 0
 					Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 6)
 					ApplyNeonStroke(optBtn, 1.6)
+					optBtn.ZIndex = 10001
+
 					optBtn.MouseButton1Click:Connect(function()
 						selection.Text = tostring(opt)
-						open = false
-						TweenService:Create(listFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
 						if typeof(tbl.Callback) == "function" then pcall(tbl.Callback, opt) end
+						closeFloatingDropdown()
 					end)
 				end
+
+				-- animate open
+				local targetSize = UDim2.fromOffset(200, totalHeight)
+				TweenService:Create(floatFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+
+				openFloatingDropdown = floatFrame
 			end
 
 			selection.MouseButton1Click:Connect(function()
 				open = not open
 				if open then
-					rebuildOptions()
-					local targetSize = UDim2.new(1, 0, 0, #options * 42)
-					TweenService:Create(listFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+					openFloating()
 				else
-					TweenService:Create(listFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+					closeFloatingDropdown()
 				end
 			end)
+
+			-- If the selection moves (window dragged), close floating dropdown
+			selection:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+				if openFloatingDropdown then
+					closeFloatingDropdown()
+				end
+			end)
+
 			return selection
 		end
 
-		-- Slider
+		-- Slider (fix camera turning by locking mouse behavior while dragging)
 		local function AddSlider(tbl)
 			tbl = tbl or {}
 			local min = tbl.Min or 0
@@ -486,7 +547,7 @@ function Library:MakeWindow(config)
 			lbl.Size = UDim2.new(0.5, 0, 0, 20)
 			lbl.BackgroundTransparency = 1
 			lbl.Text = tbl.Name or "Slider"
-			lbl.TextColor3 = Color3.fromRGB(230,230,230)
+			lbl.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			lbl.Font = Enum.Font.GothamBold
 			lbl.TextSize = 14
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -497,7 +558,7 @@ function Library:MakeWindow(config)
 			valLabel.Position = UDim2.new(0.5, 0, 0, 0)
 			valLabel.BackgroundTransparency = 1
 			valLabel.Text = tostring(default)
-			valLabel.TextColor3 = Color3.fromRGB(200,200,200)
+			valLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 			valLabel.Font = Enum.Font.Gotham
 			valLabel.TextSize = 14
 			valLabel.TextXAlignment = Enum.TextXAlignment.Right
@@ -530,17 +591,21 @@ function Library:MakeWindow(config)
 			ApplyNeonStroke(thumb, 1.6)
 
 			local dragging = false
+			local prevMouseBehavior = nil
+
 			local function setFromFraction(frac)
 				frac = math.clamp(frac, 0, 1)
 				local raw = min + (max - min) * frac
 				local stepped = math.floor((raw - min) / step + 0.5) * step + min
 				stepped = math.clamp(stepped, min, max)
-				local frac2 = (stepped - min) / math.max(1, (max - min))
+				local denom = math.max(1, (max - min))
+				local frac2 = (stepped - min) / denom
 				fill.Size = UDim2.new(frac2, 0, 1, 0)
 				thumb.Position = UDim2.new(frac2, -9, 0.5, -9)
 				valLabel.Text = tostring(stepped)
 				if typeof(tbl.Callback) == "function" then pcall(tbl.Callback, stepped) end
 			end
+
 			local function setFromPosition(x)
 				local absolute = track.AbsoluteSize.X
 				local relative = math.clamp(x - track.AbsolutePosition.X, 0, absolute)
@@ -551,20 +616,37 @@ function Library:MakeWindow(config)
 			track.InputBegan:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
+					-- save and lock mouse behaviour to stop camera movement while dragging
+					pcall(function()
+						prevMouseBehavior = UIS.MouseBehavior
+						UIS.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+					end)
 					setFromPosition(input.Position.X)
 				end
 			end)
+
 			track.InputChanged:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 					if dragging then setFromPosition(input.Position.X) end
 				end
 			end)
+
 			UIS.InputEnded:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
 					dragging = false
+					-- restore previous mouse behavior
+					pcall(function()
+						if prevMouseBehavior then
+							UIS.MouseBehavior = prevMouseBehavior
+						else
+							UIS.MouseBehavior = Enum.MouseBehavior.Default
+						end
+						prevMouseBehavior = nil
+					end)
 				end
 			end)
-			-- initialize after AbsoluteSize is available
+
+			-- initialize after AbsoluteSize available
 			spawn(function()
 				repeat wait() until track.AbsoluteSize.X > 0
 				local frac = (default - min) / math.max(1, (max - min))
@@ -584,7 +666,8 @@ function Library:MakeWindow(config)
 			box.Text = tbl.Default or ""
 			box.PlaceholderText = tbl.Placeholder or "Enter text..."
 			box.ClearTextOnFocus = false
-			box.TextColor3 = Color3.fromRGB(230,230,230)
+			box.TextColor3 = Color3.fromRGB(255,255,255) -- white
+			box.PlaceholderColor3 = Color3.fromRGB(160,160,160)
 			box.Font = Enum.Font.Gotham
 			box.TextSize = 14
 			box.Parent = container
@@ -598,7 +681,7 @@ function Library:MakeWindow(config)
 			return box
 		end
 
-		-- Section container (for grouping)
+		-- Section container (blue header)
 		local function AddSection(name)
 			local sectionFrame = Instance.new("Frame")
 			sectionFrame.Size = UDim2.new(1, 0, 0, 0)
@@ -611,7 +694,7 @@ function Library:MakeWindow(config)
 			header.Text = name or "Section"
 			header.Font = Enum.Font.GothamBold
 			header.TextSize = 16
-			header.TextColor3 = Color3.fromRGB(220,220,220)
+			header.TextColor3 = Color3.fromRGB(0, 170, 255) -- blue
 			header.TextXAlignment = Enum.TextXAlignment.Left
 			header.Parent = sectionFrame
 
@@ -625,7 +708,6 @@ function Library:MakeWindow(config)
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
 			layout.Padding = UDim.new(0, 8)
 
-			-- Section API mirrors Tab API for adding elements into this section
 			local sectionAPI = {}
 			function sectionAPI:AddButton(tbl) return AddButton(tbl) end
 			function sectionAPI:AddToggle(tbl) return AddToggle(tbl) end
@@ -635,7 +717,7 @@ function Library:MakeWindow(config)
 			return sectionAPI
 		end
 
-		-- Expose Tab API
+		-- Tab API
 		local tabAPI = {}
 		tabAPI.Page = Page
 		tabAPI.TabButton = TabBtn
@@ -744,7 +826,7 @@ function Library:MakeWindow(config)
 		ConfirmText.Position = UDim2.fromOffset(16, 20)
 		ConfirmText.BackgroundTransparency = 1
 		ConfirmText.Text = "Are you sure you want to close the UI?"
-		ConfirmText.TextColor3 = Color3.fromRGB(230, 230, 230)
+		ConfirmText.TextColor3 = Color3.fromRGB(255,255,255) -- white
 		ConfirmText.Font = Enum.Font.GothamBold
 		ConfirmText.TextSize = 18
 		ConfirmText.TextWrapped = true
@@ -766,7 +848,7 @@ function Library:MakeWindow(config)
 		ConfirmBtn.Size = UDim2.new(0, 120, 0, 36)
 		ConfirmBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
 		ConfirmBtn.Text = "Confirm"
-		ConfirmBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
+		ConfirmBtn.TextColor3 = Color3.fromRGB(255,255,255) -- white
 		ConfirmBtn.Font = Enum.Font.GothamBold
 		ConfirmBtn.TextSize = 16
 		ConfirmBtn.ZIndex = 23
@@ -777,7 +859,7 @@ function Library:MakeWindow(config)
 		CancelBtn.Size = UDim2.new(0, 120, 0, 36)
 		CancelBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
 		CancelBtn.Text = "Cancel"
-		CancelBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+		CancelBtn.TextColor3 = Color3.fromRGB(255,255,255) -- white
 		CancelBtn.Font = Enum.Font.GothamBold
 		CancelBtn.TextSize = 16
 		CancelBtn.ZIndex = 23
@@ -795,7 +877,6 @@ function Library:MakeWindow(config)
 	end
 	Close.MouseButton1Click:Connect(ShowCloseConfirm)
 
-	-- Window API (make methods match your example)
 	local WindowAPI = {}
 	WindowAPI.Window = Window
 	WindowAPI.Icon = Icon
@@ -806,7 +887,5 @@ function Library:MakeWindow(config)
 	return WindowAPI
 end
 
--- Library convenience: allow Library:MakeWindow(...) as used in example
 setmetatable(Library, {__index = Library})
-
 return Library
