@@ -191,6 +191,16 @@ function Library:MakeWindow(config)
 	Content.BackgroundTransparency = 1
 	Content.Parent = Window
 
+	-- Popup layer to show dropdowns / popups above other elements
+	local Popup = Instance.new("Frame")
+	Popup.Name = "PopupLayer"
+	Popup.Size = UDim2.new(1, 0, 1, 0)
+	Popup.Position = UDim2.new(0, 0, 0, 0)
+	Popup.BackgroundTransparency = 1
+	Popup.Parent = ScreenGui
+	Popup.ClipsDescendants = false
+	Popup.ZIndex = 50
+
 	-- Left Tabs area
 	local TabsFrame = Instance.new("Frame")
 	TabsFrame.Name = "TabsFrame"
@@ -391,7 +401,7 @@ function Library:MakeWindow(config)
 			return toggleFrame
 		end
 
-		-- Dropdown
+		-- Dropdown (fixed: render options in top-level Popup to avoid being covered)
 		local function AddDropdown(tbl)
 			tbl = tbl or {}
 			local options = tbl.Options or {}
@@ -418,6 +428,7 @@ function Library:MakeWindow(config)
 			Instance.new("UICorner", selection).CornerRadius = UDim.new(0, 8)
 			ApplyNeonStroke(selection, 1.8)
 
+			-- placeholder list frame kept for layout (not used to show options on screen)
 			local listFrame = Instance.new("Frame")
 			listFrame.Size = UDim2.new(1, 0, 0, 0)
 			listFrame.Position = UDim2.new(0, 0, 1, 6)
@@ -426,18 +437,33 @@ function Library:MakeWindow(config)
 			listFrame.Parent = container
 
 			local open = false
-			local function rebuildOptions()
-				for _, v in pairs(listFrame:GetChildren()) do
-					if not v:IsA("UIListLayout") and not v:IsA("UIPadding") then v:Destroy() end
+			local popupOptions = nil
+
+			local function destroyPopup()
+				if popupOptions and popupOptions.Parent then
+					popupOptions:Destroy()
 				end
-				local optsFrame = Instance.new("Frame")
-				optsFrame.Size = UDim2.new(1, 0, 0, #options * 36)
-				optsFrame.BackgroundTransparency = 1
-				optsFrame.Parent = listFrame
+				popupOptions = nil
+			end
+
+			local function rebuildOptionsPopup()
+				destroyPopup()
+				popupOptions = Instance.new("Frame")
+				popupOptions.Name = "DropdownPopup"
+				popupOptions.BackgroundTransparency = 1
+				popupOptions.ClipsDescendants = true
+				-- start collapsed
+				popupOptions.Size = UDim2.fromOffset(selection.AbsoluteSize.X, 0)
+				-- position relative to screen using selection absolute position
+				popupOptions.Position = UDim2.fromOffset(selection.AbsolutePosition.X, selection.AbsolutePosition.Y + selection.AbsoluteSize.Y + 6)
+				popupOptions.Parent = Popup
+				popupOptions.ZIndex = 60
+
 				local optsLayout = Instance.new("UIListLayout")
 				optsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				optsLayout.Padding = UDim.new(0, 6)
-				optsLayout.Parent = optsFrame
+				optsLayout.Parent = popupOptions
+
 				for i, opt in ipairs(options) do
 					local optBtn = Instance.new("TextButton")
 					optBtn.Size = UDim2.new(1, 0, 0, 36)
@@ -446,14 +472,19 @@ function Library:MakeWindow(config)
 					optBtn.TextColor3 = Color3.fromRGB(220,220,220)
 					optBtn.Font = Enum.Font.Gotham
 					optBtn.TextSize = 14
-					optBtn.Parent = optsFrame
+					optBtn.Parent = popupOptions
 					optBtn.BorderSizePixel = 0
 					Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 6)
 					ApplyNeonStroke(optBtn, 1.6)
+					optBtn.ZIndex = 61
 					optBtn.MouseButton1Click:Connect(function()
 						selection.Text = tostring(opt)
 						open = false
-						TweenService:Create(listFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+						-- animate collapse then destroy
+						local collapse = TweenService:Create(popupOptions, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(selection.AbsoluteSize.X, 0)})
+						collapse:Play()
+						collapse.Completed:Wait()
+						destroyPopup()
 						if typeof(tbl.Callback) == "function" then pcall(tbl.Callback, opt) end
 					end)
 				end
@@ -462,13 +493,47 @@ function Library:MakeWindow(config)
 			selection.MouseButton1Click:Connect(function()
 				open = not open
 				if open then
-					rebuildOptions()
-					local targetSize = UDim2.new(1, 0, 0, #options * 42)
-					TweenService:Create(listFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+					-- wait a frame to ensure AbsolutePosition/Size are accurate after layout
+					spawn(function()
+						wait()
+						if not open then return end
+						rebuildOptionsPopup()
+						if not popupOptions then return end
+						local targetHeight = #options * 42
+						local expand = TweenService:Create(popupOptions, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(selection.AbsoluteSize.X, targetHeight)})
+						expand:Play()
+					end)
 				else
-					TweenService:Create(listFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+					if popupOptions then
+						local collapse = TweenService:Create(popupOptions, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(selection.AbsoluteSize.X, 0)})
+						collapse:Play()
+						collapse.Completed:Wait()
+						destroyPopup()
+					end
 				end
 			end)
+
+			-- optional: close popup if user clicks anywhere else on screen
+			-- this listens for left-clicks and closes the popup unless the click target is inside the popup
+			UIS.InputBegan:Connect(function(input, processed)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					if open and popupOptions and popupOptions.Parent then
+						local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+						local pos = popupOptions.AbsolutePosition
+						local size = popupOptions.AbsoluteSize
+						local inPopup = mousePos.X >= pos.X and mousePos.X <= pos.X + size.X and mousePos.Y >= pos.Y and mousePos.Y <= pos.Y + size.Y
+						-- also ignore clicks on selection button itself
+						local selPos = selection.AbsolutePosition
+						local selSize = selection.AbsoluteSize
+						local inSelection = mousePos.X >= selPos.X and mousePos.X <= selPos.X + selSize.X and mousePos.Y >= selPos.Y and mousePos.Y <= selPos.Y + selSize.Y
+						if not inPopup and not inSelection then
+							open = false
+							destroyPopup()
+						end
+					end
+				end
+			end)
+
 			return selection
 		end
 
