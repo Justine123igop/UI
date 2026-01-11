@@ -1,10 +1,11 @@
--- Kaze-style Neon UI Library (fixed)
--- Fixes applied in this version:
--- 1) Floating dropdown now uses very high ZIndex for all children so it will not be covered by other UI.
--- 2) Dropdown floating menu is positioned and will auto-flip to the left if there is not enough space on the right.
--- 3) Slider dragging now blocks camera input using ContextActionService while dragging (prevents camera rotation).
--- 4) Sections now correctly contain elements (AddSection returns a section API that places elements inside the section).
--- 5) All visible text remains pure white. Placeholders remain gray.
+-- Kaze-style Neon UI Library (stable fixes)
+-- Fixes included in this version:
+-- 1) Prevent duplicate UIs by removing any existing "KazeUI" ScreenGui before creating a new one.
+-- 2) All visible text (TextLabel/TextButton/TextBox.Text) is pure white.
+-- 3) Slider dragging uses MouseBehavior lock + UIS.InputChanged to reliably update while preventing camera rotation.
+-- 4) Floating dropdown is rendered with very high ZIndex and does auto-flip left/right. Children have high ZIndex so they won't be covered.
+-- 5) Sections properly auto-size and contain elements (AddSection returns a section API).
+-- 6) Misc robustness improvements (waiting for AbsoluteSize when needed).
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -12,12 +13,20 @@ local UIS = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
 local LP = Players.LocalPlayer
 
+-- Remove any previous KazeUI to prevent duplicates when reloading the script
+local existing = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("KazeUI")
+if existing then
+	pcall(function() existing:Destroy() end)
+end
+
+-- Create ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KazeUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = LP:WaitForChild("PlayerGui")
 
+-- UIScale
 local UIScale = Instance.new("UIScale")
 UIScale.Parent = ScreenGui
 local function UpdateScale()
@@ -141,7 +150,7 @@ function Library:MakeWindow(config)
 	TitleLabel.Position = UDim2.fromOffset(56, 8)
 	TitleLabel.BackgroundTransparency = 1
 	TitleLabel.Text = Title
-	TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
+	TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 	TitleLabel.Font = Enum.Font.GothamBold
 	TitleLabel.TextSize = 16
 	TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -152,7 +161,7 @@ function Library:MakeWindow(config)
 	SubLabel.Position = UDim2.fromOffset(56, 30)
 	SubLabel.BackgroundTransparency = 1
 	SubLabel.Text = SubTitle
-	SubLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
+	SubLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 	SubLabel.Font = Enum.Font.Gotham
 	SubLabel.TextSize = 13
 	SubLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -164,7 +173,7 @@ function Library:MakeWindow(config)
 	Minimize.Text = "—"
 	Minimize.Font = Enum.Font.GothamBold
 	Minimize.TextSize = 20
-	Minimize.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
+	Minimize.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 	Minimize.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 	Minimize.Parent = TopBar
 	Instance.new("UICorner", Minimize).CornerRadius = UDim.new(1, 0)
@@ -175,7 +184,7 @@ function Library:MakeWindow(config)
 	Close.Text = "✕"
 	Close.Font = Enum.Font.GothamBold
 	Close.TextSize = 18
-	Close.TextColor3 = Color3.fromRGB(255, 255, 255) -- pure white
+	Close.TextColor3 = Color3.fromRGB(255, 255, 255) -- white
 	Close.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 	Close.Parent = TopBar
 	Instance.new("UICorner", Close).CornerRadius = UDim.new(1, 0)
@@ -229,7 +238,7 @@ function Library:MakeWindow(config)
 	local openFloatingDropdown = nil
 	local function closeFloatingDropdown()
 		if openFloatingDropdown and openFloatingDropdown.Parent then
-			openFloatingDropdown:Destroy()
+			pcall(function() openFloatingDropdown:Destroy() end)
 		end
 		openFloatingDropdown = nil
 	end
@@ -416,7 +425,7 @@ function Library:MakeWindow(config)
 			return toggleFrame
 		end
 
-		-- Dropdown (floating to the right, auto-flip if not enough space)
+		-- Dropdown (floating to the right/left as needed)
 		local function AddDropdown(tbl, parent)
 			tbl = tbl or {}
 			local options = tbl.Options or {}
@@ -451,8 +460,7 @@ function Library:MakeWindow(config)
 				local absSize = selection.AbsoluteSize
 				local viewportSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
 
-				-- compute desired position to the right; if not enough space, flip to left
-				local floatWidth = 200
+				local floatWidth = 220
 				local itemHeight = 36
 				local padding = 6
 				local optsCount = math.max(1, #options)
@@ -472,7 +480,7 @@ function Library:MakeWindow(config)
 				floatFrame.Size = UDim2.fromOffset(0, 0)
 				floatFrame.Position = UDim2.fromOffset(floatX, floatY)
 				floatFrame.BackgroundTransparency = 1
-				floatFrame.ClipsDescendants = true
+				floatFrame.ClipsDescendants = false
 				floatFrame.ZIndex = 10050
 				floatFrame.Parent = ScreenGui
 
@@ -495,6 +503,7 @@ function Library:MakeWindow(config)
 				listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				listLayout.Parent = containerFrame
 
+				-- make sure choices won't be occluded
 				for i, opt in ipairs(options) do
 					local optBtn = Instance.new("TextButton")
 					optBtn.Size = UDim2.new(1, -12, 0, itemHeight)
@@ -508,7 +517,11 @@ function Library:MakeWindow(config)
 					optBtn.BorderSizePixel = 0
 					Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 6)
 					ApplyNeonStroke(optBtn, 1.6)
+					-- ensure high ZIndex for buttons and descendants
 					optBtn.ZIndex = 10052
+					for _,desc in ipairs(optBtn:GetDescendants()) do
+						if desc:IsA("GuiObject") then desc.ZIndex = 10052 end
+					end
 
 					optBtn.MouseButton1Click:Connect(function()
 						selection.Text = tostring(opt)
@@ -527,13 +540,21 @@ function Library:MakeWindow(config)
 			selection.MouseButton1Click:Connect(function()
 				open = not open
 				if open then
-					buildFloating()
+					-- ensure selection AbsolutePosition is ready
+					if selection.AbsoluteSize.X == 0 then
+						-- wait a frame then open
+						spawn(function()
+							repeat wait() until selection.AbsoluteSize.X > 0
+							buildFloating()
+						end)
+					else
+						buildFloating()
+					end
 				else
 					closeFloatingDropdown()
 				end
 			end)
 
-			-- if selection moves, close floating
 			selection:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
 				if openFloatingDropdown then closeFloatingDropdown() end
 			end)
@@ -541,7 +562,7 @@ function Library:MakeWindow(config)
 			return selection
 		end
 
-		-- Slider (use ContextActionService to consume mouse movement while dragging)
+		-- Slider (use MouseBehavior lock + UIS.InputChanged to reliably update while dragging)
 		local function AddSlider(tbl, parent)
 			tbl = tbl or {}
 			local min = tbl.Min or 0
@@ -599,12 +620,8 @@ function Library:MakeWindow(config)
 			ApplyNeonStroke(thumb, 1.6)
 
 			local dragging = false
-			local actionName = "KazeSliderConsume_" .. tostring(math.random(1,999999))
-
-			local function consumeInput(actionNameArg, inputState, inputObject)
-				-- consume mouse movement input
-				return Enum.ContextActionResult.Sink
-			end
+			local prevMouseBehavior = nil
+			local inputChangedConnection = nil
 
 			local function setFromFraction(frac)
 				frac = math.clamp(frac, 0, 1)
@@ -629,29 +646,46 @@ function Library:MakeWindow(config)
 			track.InputBegan:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
-					-- bind a consuming action for mouse movement to prevent camera rotate
+					-- lock mouse to current position to prevent camera rotation
 					pcall(function()
-						ContextActionService:BindAction(actionName, consumeInput, false, Enum.UserInputType.MouseMovement, Enum.UserInputType.Touch)
-						ContextActionService:BindAction(actionName .. "_1", consumeInput, false, Enum.UserInputType.MouseButton1)
+						prevMouseBehavior = UIS.MouseBehavior
+						UIS.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
 					end)
-					setFromPosition(input.Position.X)
+					-- connect UIS.InputChanged for reliable updates
+					inputChangedConnection = UIS.InputChanged:Connect(function(inpt)
+						if dragging and (inpt.UserInputType == Enum.UserInputType.MouseMovement or inpt.UserInputType == Enum.UserInputType.Touch) then
+							pcall(function() setFromPosition(inpt.Position.X) end)
+						end
+					end)
+					-- set current position immediately
+					pcall(function() setFromPosition(input.Position.X) end)
 				end
 			end)
 
 			track.InputChanged:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					if dragging then setFromPosition(input.Position.X) end
+				-- fallback: if track receives movement events
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					pcall(function() setFromPosition(input.Position.X) end)
 				end
 			end)
 
 			UIS.InputEnded:Connect(function(input)
 				if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and dragging then
 					dragging = false
-					-- unbind consuming action
+					-- restore mouse behaviour
 					pcall(function()
-						ContextActionService:UnbindAction(actionName)
-						ContextActionService:UnbindAction(actionName .. "_1")
+						if prevMouseBehavior then
+							UIS.MouseBehavior = prevMouseBehavior
+						else
+							UIS.MouseBehavior = Enum.MouseBehavior.Default
+						end
+						prevMouseBehavior = nil
 					end)
+					-- disconnect InputChanged connection if present
+					if inputChangedConnection then
+						inputChangedConnection:Disconnect()
+						inputChangedConnection = nil
+					end
 				end
 			end)
 
@@ -676,7 +710,8 @@ function Library:MakeWindow(config)
 			box.PlaceholderText = tbl.Placeholder or "Enter text..."
 			box.ClearTextOnFocus = false
 			box.TextColor3 = Color3.fromRGB(255,255,255) -- white
-			box.PlaceholderColor3 = Color3.fromRGB(160,160,160)
+			-- PlaceholderColor3 does not exist in some environments; keep default if not supported
+			pcall(function() box.PlaceholderColor3 = Color3.fromRGB(160,160,160) end)
 			box.Font = Enum.Font.Gotham
 			box.TextSize = 14
 			box.Parent = container
@@ -690,12 +725,14 @@ function Library:MakeWindow(config)
 			return box
 		end
 
-		-- Section container (blue header). Section API will add elements into the section's 'list' frame.
+		-- Section container (blue header). Uses AutomaticSize to expand to fit children.
 		local function AddSection(name)
 			local sectionFrame = Instance.new("Frame")
 			sectionFrame.Size = UDim2.new(1, 0, 0, 0)
 			sectionFrame.BackgroundTransparency = 1
 			sectionFrame.Parent = PageList
+			-- auto-size Y so header + list grow
+			pcall(function() sectionFrame.AutomaticSize = Enum.AutomaticSize.Y end)
 
 			local header = Instance.new("TextLabel")
 			header.Size = UDim2.new(1, 0, 0, 26)
@@ -712,12 +749,15 @@ function Library:MakeWindow(config)
 			list.Position = UDim2.new(0, 0, 0, 30)
 			list.BackgroundTransparency = 1
 			list.Parent = sectionFrame
+			-- auto-size children in list
+			pcall(function() list.AutomaticSize = Enum.AutomaticSize.Y end)
+
 			local layout = Instance.new("UIListLayout")
 			layout.Parent = list
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
 			layout.Padding = UDim.new(0, 8)
 
-			-- Section API uses the same element creators but passes 'list' as parent so elements go inside the section
+			-- Section API uses same creators but passes 'list' as parent
 			local sectionAPI = {}
 			function sectionAPI:AddButton(tbl) return AddButton(tbl, list) end
 			function sectionAPI:AddToggle(tbl) return AddToggle(tbl, list) end
