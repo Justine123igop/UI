@@ -2,6 +2,7 @@
 --// Window System (PC + Mobile)
 --// Updated: shadow rounded corner fix; dividers matching outline (neon stroke thickness/color)
 --// Added: non-movable scrollable tabs (CreateTab), tab content container, selection highlight
+--// Fix: smooth center-scrolling to selected tab to avoid hard manual scrolling when many tabs
 
 local KazeUI = {}
 KazeUI.__index = KazeUI
@@ -10,6 +11,7 @@ KazeUI.__index = KazeUI
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer
 
 --// Create ScreenGui
@@ -582,15 +584,29 @@ function KazeUI:CreateWindow(config)
 			tabBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 38)
 			selectedTabButton = tabBtn
 
-			-- ensure button is visible in scroller (scroll to show)
+			-- Smoothly center selected button (or ensure fully visible) in the scroller
 			pcall(function()
-				local relativeY = tabBtn.AbsolutePosition.Y - TabsScroller.AbsolutePosition.Y
-				local scrollerH = TabsScroller.AbsoluteSize.Y
-				if relativeY < 0 then
-					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + relativeY - 8)
-				elseif relativeY + tabBtn.AbsoluteSize.Y > scrollerH then
-					local diff = (relativeY + tabBtn.AbsoluteSize.Y) - scrollerH + 8
-					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + diff)
+				-- wait a frame to ensure AbsolutePosition/Size are up-to-date
+				RunService.Heartbeat:Wait()
+
+				local scrollerHeight = TabsScroller.AbsoluteSize.Y
+				local contentHeight = TabsScroller.CanvasSize.Y.Offset or 0
+				local maxCanvas = math.max(0, contentHeight - scrollerHeight)
+
+				-- compute button position within the full content (unscrolled)
+				local buttonPosInContent = tabBtn.AbsolutePosition.Y - TabsScroller.AbsolutePosition.Y + TabsScroller.CanvasPosition.Y
+
+				-- target to center the button in view
+				local targetCanvasY = buttonPosInContent - (scrollerHeight * 0.5) + (tabBtn.AbsoluteSize.Y * 0.5)
+				targetCanvasY = math.clamp(targetCanvasY, 0, maxCanvas)
+
+				-- animate scroll
+				local success, err = pcall(function()
+					TweenService:Create(TabsScroller, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2.new(0, targetCanvasY)}):Play()
+				end)
+				if not success then
+					-- fallback: set immediately
+					TabsScroller.CanvasPosition = Vector2.new(0, targetCanvasY)
 				end
 			end)
 		end
