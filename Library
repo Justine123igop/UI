@@ -1,6 +1,7 @@
 --// Kaze UI Base
 --// Window System (PC + Mobile)
 --// Updated: shadow rounded corner fix; dividers matching outline (neon stroke thickness/color)
+--// Added: non-movable scrollable tabs (CreateTab), tab content container, selection highlight
 
 local KazeUI = {}
 KazeUI.__index = KazeUI
@@ -444,11 +445,182 @@ function KazeUI:CreateWindow(config)
 	vertDivStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	StartNeonLoop(vertDivStroke)
 
+	-- Tabs container (right side content area)
+	local TabsContainer = Instance.new("Frame")
+	TabsContainer.Name = "TabsContainer"
+	TabsContainer.Size = UDim2.new(1, -182, 1, 0)
+	TabsContainer.Position = UDim2.new(0, 182, 0, 0)
+	TabsContainer.BackgroundTransparency = 1
+	TabsContainer.Parent = Content
+
+	-- Scrolling tabs inside the sidebar (vertical scroll)
+	local TabsScroller = Instance.new("ScrollingFrame")
+	TabsScroller.Name = "TabsScroller"
+	TabsScroller.Size = UDim2.new(1, -16, 1, -16)
+	TabsScroller.Position = UDim2.new(0, 8, 0, 8)
+	TabsScroller.CanvasSize = UDim2.new(0, 0, 0, 0)
+	TabsScroller.ScrollBarThickness = 6
+	TabsScroller.BackgroundTransparency = 1
+	TabsScroller.Parent = SideBar
+	TabsScroller.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+
+	local tabsLayout = Instance.new("UIListLayout")
+	tabsLayout.Parent = TabsScroller
+	tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	tabsLayout.Padding = UDim.new(0, 8)
+
+	local tabsPadding = Instance.new("UIPadding")
+	tabsPadding.PaddingTop = UDim.new(0, 8)
+	tabsPadding.PaddingLeft = UDim.new(0, 8)
+	tabsPadding.PaddingRight = UDim.new(0, 8)
+	tabsPadding.PaddingBottom = UDim.new(0, 8)
+	tabsPadding.Parent = TabsScroller
+
+	-- Auto adjust canvas size when tabs added/removed
+	tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		local totalY = tabsLayout.AbsoluteContentSize.Y + 12
+		TabsScroller.CanvasSize = UDim2.new(0, 0, 0, totalY)
+	end)
+
+	-- Table to track tabs
+	local createdTabs = {}
+	local selectedTabButton = nil
+
+	-- API object to return
+	local WindowAPI = {
+		Window = Window,
+		Content = Content,
+		Icon = Avatar,
+		MiniButton = MiniButton,
+		SideBar = SideBar
+	}
+
+	-- CreateTab method: non-movable tabs, scrollable sidebar
+	function WindowAPI:CreateTab(tabConfig)
+		tabConfig = tabConfig or {}
+		local tabTitle = tabConfig.Title or "Tab"
+		local tabIcon = FormatImage(tabConfig.Icon or "")
+
+		-- Tab button
+		local tabBtn = Instance.new("TextButton")
+		tabBtn.Name = "TabButton_" .. tabTitle
+		tabBtn.AutoButtonColor = true
+		tabBtn.Size = UDim2.new(1, 0, 0, 44)
+		tabBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+		tabBtn.BorderSizePixel = 0
+		tabBtn.Text = ""
+		tabBtn.LayoutOrder = #createdTabs + 1
+		tabBtn.Parent = TabsScroller
+		Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 8)
+
+		-- Icon
+		local btnIcon = Instance.new("ImageLabel")
+		btnIcon.Name = "Icon"
+		btnIcon.Size = UDim2.fromOffset(28, 28)
+		btnIcon.Position = UDim2.fromOffset(8, 8)
+		btnIcon.BackgroundTransparency = 1
+		btnIcon.Image = tabIcon
+		btnIcon.Parent = tabBtn
+		Instance.new("UICorner", btnIcon).CornerRadius = UDim.new(1, 0)
+
+		-- Title
+		local btnLabel = Instance.new("TextLabel")
+		btnLabel.Name = "Label"
+		btnLabel.Size = UDim2.new(1, -44, 1, 0)
+		btnLabel.Position = UDim2.fromOffset(44, 0)
+		btnLabel.BackgroundTransparency = 1
+		btnLabel.Text = tabTitle
+		btnLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+		btnLabel.Font = Enum.Font.Gotham
+		btnLabel.TextSize = 14
+		btnLabel.TextXAlignment = Enum.TextXAlignment.Left
+		btnLabel.Parent = tabBtn
+
+		-- Selection highlight (left edge)
+		local selectBar = Instance.new("Frame")
+		selectBar.Name = "SelectBar"
+		selectBar.Size = UDim2.new(0, 4, 1, 0)
+		selectBar.Position = UDim2.new(0, 0, 0, 0)
+		selectBar.BackgroundColor3 = Color3.fromRGB(0, 160, 255)
+		selectBar.BorderSizePixel = 0
+		selectBar.Visible = false
+		selectBar.Parent = tabBtn
+		Instance.new("UICorner", selectBar).CornerRadius = UDim.new(0, 4)
+
+		-- Tab content
+		local tabContent = Instance.new("Frame")
+		tabContent.Name = "TabContent"
+		tabContent.Size = UDim2.new(1, 0, 1, 0)
+		tabContent.Position = UDim2.new(0, 0, 0, 0)
+		tabContent.BackgroundTransparency = 1
+		tabContent.Visible = false
+		tabContent.Parent = TabsContainer
+
+		-- convenience content holder where users can Parent UI elements
+		local innerContent = Instance.new("Frame")
+		innerContent.Name = "Inner"
+		innerContent.Size = UDim2.new(1, 0, 1, 0)
+		innerContent.BackgroundTransparency = 1
+		innerContent.Parent = tabContent
+
+		-- Click behavior: select this tab (no moving/reordering)
+		local function selectTab()
+			-- hide all tab contents and un-highlight buttons
+			for _, t in ipairs(createdTabs) do
+				if t.Button and t.Button:FindFirstChild("SelectBar") then
+					t.Button.SelectBar.Visible = false
+					t.Button.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+				end
+				if t.Content then
+					t.Content.Visible = false
+				end
+			end
+
+			-- show this tab
+			tabContent.Visible = true
+			selectBar.Visible = true
+			tabBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 38)
+			selectedTabButton = tabBtn
+
+			-- ensure button is visible in scroller (scroll to show)
+			pcall(function()
+				local relativeY = tabBtn.AbsolutePosition.Y - TabsScroller.AbsolutePosition.Y
+				local scrollerH = TabsScroller.AbsoluteSize.Y
+				if relativeY < 0 then
+					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + relativeY - 8)
+				elseif relativeY + tabBtn.AbsoluteSize.Y > scrollerH then
+					local diff = (relativeY + tabBtn.AbsoluteSize.Y) - scrollerH + 8
+					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + diff)
+				end
+			end)
+		end
+
+		tabBtn.MouseButton1Click:Connect(function()
+			selectTab()
+		end)
+
+		-- if this is the first tab, select it
+		if #createdTabs == 0 then
+			selectTab()
+		end
+
+		local tabData = {Button = tabBtn, Content = tabContent}
+		table.insert(createdTabs, tabData)
+
+		-- Return API for this tab so user can modify content
+		return {
+			Button = tabBtn,
+			Content = tabContent,
+			Inner = innerContent,
+			Select = selectTab
+		}
+	end
+
 	if typeof(Callback) == "function" then
 		pcall(Callback)
 	end
 
-	return {Window = Window, Content = Content, Icon = Avatar, MiniButton = MiniButton, SideBar = SideBar}
+	return WindowAPI
 end
 
 return KazeUI
