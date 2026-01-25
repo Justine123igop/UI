@@ -2,7 +2,6 @@
 --// Window System (PC + Mobile)
 --// Updated: shadow rounded corner fix; dividers matching outline (neon stroke thickness/color)
 --// Added: non-movable scrollable tabs (CreateTab), tab content container, selection highlight
---// Fix: avoid snapping/back-fighting when user manually scrolls tabs
 
 local KazeUI = {}
 KazeUI.__index = KazeUI
@@ -11,7 +10,6 @@ KazeUI.__index = KazeUI
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer
 
 --// Create ScreenGui
@@ -465,7 +463,6 @@ function KazeUI:CreateWindow(config)
 	TabsScroller.BackgroundTransparency = 1
 	TabsScroller.Parent = SideBar
 	TabsScroller.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
-	TabsScroller.ScrollBarImageColor3 = Color3.fromRGB(80,80,85)
 
 	local tabsLayout = Instance.new("UIListLayout")
 	tabsLayout.Parent = TabsScroller
@@ -488,58 +485,6 @@ function KazeUI:CreateWindow(config)
 	-- Table to track tabs
 	local createdTabs = {}
 	local selectedTabButton = nil
-
-	-- Scrolling/interaction flags and active tween handle
-	local isUserInteracting = false
-	local activeTween = nil
-	local userInteractionTimer = nil
-
-	-- Detect when user interacts with the tabs scroller (touch/mouse drag). We set a short debounce to avoid flip-flopping.
-	TabsScroller.InputBegan:Connect(function(input)
-		-- Only treat direct interaction with the scroller as user scrolling
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			isUserInteracting = true
-			-- cancel any auto tween in progress
-			if activeTween then
-				pcall(function() activeTween:Cancel() end)
-				activeTween = nil
-			end
-			-- clear any timer
-			if userInteractionTimer then
-				pcall(userInteractionTimer)
-				userInteractionTimer = nil
-			end
-		end
-	end)
-
-	TabsScroller.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			-- small delay to allow flick/inertia to finish
-			if userInteractionTimer then pcall(userInteractionTimer) end
-			userInteractionTimer = delay(0.12, function()
-				isUserInteracting = false
-				userInteractionTimer = nil
-			end)
-		end
-	end)
-
-	-- mouse wheel / trackpad: detect via InputChanged
-	UIS.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			-- user scrolled with wheel; treat as user interaction briefly
-			isUserInteracting = true
-			if activeTween then
-				pcall(function() activeTween:Cancel() end)
-				activeTween = nil
-			end
-			-- reset timer
-			if userInteractionTimer then pcall(userInteractionTimer) end
-			userInteractionTimer = delay(0.12, function()
-				isUserInteracting = false
-				userInteractionTimer = nil
-			end)
-		end
-	end)
 
 	-- API object to return
 	local WindowAPI = {
@@ -619,7 +564,7 @@ function KazeUI:CreateWindow(config)
 		innerContent.Parent = tabContent
 
 		-- Click behavior: select this tab (no moving/reordering)
-		local function selectTab(forceCenter)
+		local function selectTab()
 			-- hide all tab contents and un-highlight buttons
 			for _, t in ipairs(createdTabs) do
 				if t.Button and t.Button:FindFirstChild("SelectBar") then
@@ -637,61 +582,26 @@ function KazeUI:CreateWindow(config)
 			tabBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 38)
 			selectedTabButton = tabBtn
 
-			-- Smoothly center selected button (or ensure fully visible) in the scroller
-			-- Only run auto-centering if forceCenter==true (explicit click) or if user is NOT currently interacting
+			-- ensure button is visible in scroller (scroll to show)
 			pcall(function()
-				-- wait a frame to ensure AbsolutePosition/Size are up-to-date
-				RunService.Heartbeat:Wait()
-
-				-- if user is currently scrolling and we weren't forced, don't auto-center
-				if isUserInteracting and not forceCenter then
-					return
-				end
-
-				local scrollerHeight = TabsScroller.AbsoluteSize.Y
-				local contentHeight = (TabsScroller.CanvasSize and TabsScroller.CanvasSize.Y and TabsScroller.CanvasSize.Y.Offset) or 0
-				local maxCanvas = math.max(0, contentHeight - scrollerHeight)
-
-				-- compute button position within the full content (unscrolled)
-				local buttonPosInContent = tabBtn.AbsolutePosition.Y - TabsScroller.AbsolutePosition.Y + TabsScroller.CanvasPosition.Y
-
-				-- target to center the button in view
-				local targetCanvasY = buttonPosInContent - (scrollerHeight * 0.5) + (tabBtn.AbsoluteSize.Y * 0.5)
-				targetCanvasY = math.clamp(targetCanvasY, 0, maxCanvas)
-
-				-- cancel previous tween
-				if activeTween then
-					pcall(function() activeTween:Cancel() end)
-					activeTween = nil
-				end
-
-				-- animate scroll
-				local ok, tw = pcall(function()
-					local tween = TweenService:Create(TabsScroller, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CanvasPosition = Vector2.new(0, targetCanvasY)})
-					tween:Play()
-					return tween
-				end)
-				if ok and tw then
-					activeTween = tw
-					-- clear activeTween when complete
-					tw.Completed:Connect(function()
-						activeTween = nil
-					end)
-				else
-					-- fallback: set immediately
-					TabsScroller.CanvasPosition = Vector2.new(0, targetCanvasY)
+				local relativeY = tabBtn.AbsolutePosition.Y - TabsScroller.AbsolutePosition.Y
+				local scrollerH = TabsScroller.AbsoluteSize.Y
+				if relativeY < 0 then
+					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + relativeY - 8)
+				elseif relativeY + tabBtn.AbsoluteSize.Y > scrollerH then
+					local diff = (relativeY + tabBtn.AbsoluteSize.Y) - scrollerH + 8
+					TabsScroller.CanvasPosition = Vector2.new(0, TabsScroller.CanvasPosition.Y + diff)
 				end
 			end)
 		end
 
 		tabBtn.MouseButton1Click:Connect(function()
-			-- clicking is an explicit user action; force auto-centering after click
-			selectTab(true)
+			selectTab()
 		end)
 
 		-- if this is the first tab, select it
 		if #createdTabs == 0 then
-			selectTab(true)
+			selectTab()
 		end
 
 		local tabData = {Button = tabBtn, Content = tabContent}
@@ -702,7 +612,7 @@ function KazeUI:CreateWindow(config)
 			Button = tabBtn,
 			Content = tabContent,
 			Inner = innerContent,
-			Select = function() selectTab(true) end
+			Select = selectTab
 		}
 	end
 
